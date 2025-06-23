@@ -14,5 +14,13 @@
       <i class="fa fa-star" aria-hidden="true"></i>
   Me das 5 estrellitas?
 </a>
+ <script> if (document.referrer.startsWith('android-app://ar.claro.com.android')) {
+  // Show the link
+  document.getElementById('miclaro://review').style.display = 'block';
+} else {
+  // Hide the link
+  document.getElementById('miclaro://review').style.display = 'none';
+}
+ </script>
   </body>
 </html>
