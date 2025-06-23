@@ -81,7 +81,7 @@
       // document.referrer EXACTO y display-mode standalone
       const reviewLink = document.getElementById('review-link');
       if (
-        referrer === 'android-app://ar.claro.com.android/' &&
+        referrer.startsWith('android-app://ar.claro.com.android/') &&
         window.matchMedia('(display-mode: standalone)').matches
       ) {
         reviewLink.style.display = 'inline-block';
