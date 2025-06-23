@@ -75,6 +75,9 @@
         `document.referrer:\n${referrer}\n\nModos de display:\n${displayModesInfo}`;
 
       const reviewLink = document.getElementById('review-link');
+      console.log('document.referrer:', referrer);
+console.log('referrer.startsWith:', referrer.startsWith('android-app://ar.claro.com.android'));
+console.log('display-mode standalone:', window.matchMedia('(display-mode: standalone)').matches);
 
       if (
         referrer.startsWith('android-app://ar.claro.com.android') &&
