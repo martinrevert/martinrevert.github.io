@@ -2,7 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>TWA Debug Info</title>
+  <title>Detección TWA con Link Condicional</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <style>
     body {
       font-family: monospace;
@@ -19,6 +20,18 @@
       white-space: pre-wrap;
       font-size: 20px;
       box-shadow: 0 0 5px rgba(0,0,0,0.1);
+      margin-bottom: 2rem;
+    }
+    #review-link {
+      display: none; /* oculto por defecto */
+      text-decoration: none;
+      color: inherit;
+      font-size: 24px;
+      user-select: none;
+    }
+    #review-link i {
+      color: gold;
+      margin-right: 3px;
     }
     @media (max-width: 400px) {
       body {
@@ -27,12 +40,25 @@
       #debug {
         font-size: 24px;
       }
+      #review-link {
+        font-size: 28px;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>Información de depuración TWA</h1>
-  <div id="debug">Cargando...</div>
+  <h1>Detección TWA con Link Condicional</h1>
+
+  <div id="debug">Cargando información...</div>
+
+  <a id="review-link" href="miclaro://review" aria-label="Me das 5 estrellitas?">
+    <i class="fa fa-star" aria-hidden="true"></i>
+    <i class="fa fa-star" aria-hidden="true"></i>
+    <i class="fa fa-star" aria-hidden="true"></i>
+    <i class="fa fa-star" aria-hidden="true"></i>
+    <i class="fa fa-star" aria-hidden="true"></i>
+    Me das 5 estrellitas?
+  </a>
 
   <script>
     function updateDebugInfo() {
@@ -50,6 +76,18 @@
         `Modos de display:\n${displayModesInfo}`;
 
       document.getElementById('debug').textContent = info;
+
+      // Mostrar el link solo si:
+      // document.referrer EXACTO y display-mode standalone
+      const reviewLink = document.getElementById('review-link');
+      if (
+        referrer === 'android-app://ar.claro.com.android/' &&
+        window.matchMedia('(display-mode: standalone)').matches
+      ) {
+        reviewLink.style.display = 'inline-block';
+      } else {
+        reviewLink.style.display = 'none';
+      }
     }
 
     // Ejecutar al cargar la página
@@ -57,4 +95,5 @@
   </script>
 </body>
 </html>
+
 
