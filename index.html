@@ -23,7 +23,7 @@
       margin-bottom: 2rem;
     }
     #review-link {
-      display: none; /* oculto por defecto */
+      display: none;
       text-decoration: none;
       color: inherit;
       font-size: 24px;
@@ -61,7 +61,7 @@
   </a>
 
   <script>
-    function updateDebugInfo() {
+    window.addEventListener('DOMContentLoaded', () => {
       const referrer = document.referrer || '(vacío)';
       const modes = ['standalone', 'browser', 'minimal-ui', 'fullscreen'];
       let displayModesInfo = '';
@@ -71,29 +71,20 @@
         displayModesInfo += `${mode}: ${matches ? '✅ coincide' : '❌ no coincide'}\n`;
       });
 
-      const info = 
-        `document.referrer:\n${referrer}\n\n` +
-        `Modos de display:\n${displayModesInfo}`;
+      document.getElementById('debug').textContent =
+        `document.referrer:\n${referrer}\n\nModos de display:\n${displayModesInfo}`;
 
-      document.getElementById('debug').textContent = info;
-
-      // Mostrar el link solo si:
-      // document.referrer EXACTO y display-mode standalone
       const reviewLink = document.getElementById('review-link');
+
       if (
-        referrer.startsWith('android-app://ar.claro.com.android/') &&
+        referrer.startsWith('android-app://ar.claro.com.android') &&
         window.matchMedia('(display-mode: standalone)').matches
       ) {
         reviewLink.style.display = 'inline-block';
       } else {
         reviewLink.style.display = 'none';
       }
-    }
-
-    // Ejecutar al cargar la página
-    updateDebugInfo();
+    });
   </script>
 </body>
 </html>
-
-
