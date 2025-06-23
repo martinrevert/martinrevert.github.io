@@ -1,34 +1,47 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <title>Hello World</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  </head>
-  <body>
-    <h1>Hello, GitHub Pages!</h1>
-    <a id="review-link" href="miclaro://review" style="text-decoration: none; color: inherit; display:none;">
-      <i class="fa fa-star" aria-hidden="true"></i>
-      <i class="fa fa-star" aria-hidden="true"></i>
-      <i class="fa fa-star" aria-hidden="true"></i>
-      <i class="fa fa-star" aria-hidden="true"></i>
-      <i class="fa fa-star" aria-hidden="true"></i>
-      Me das 5 estrellitas?
-    </a>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>TWA Debug Info</title>
+  <style>
+    body {
+      font-family: monospace;
+      background: #f9f9f9;
+      padding: 20px;
+    }
+    #debug {
+      background: #eee;
+      border-radius: 8px;
+      padding: 15px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>Información de depuración TWA</h1>
+  <div id="debug">Cargando...</div>
 
-    <script>
-      // Función para detectar si estamos dentro de una TWA
-      function isInTWA() {
-        return document.referrer && document.referrer.startsWith('android-app://ar.claro.com.android');
-      }
+  <script>
+    function updateDebugInfo() {
+      const referrer = document.referrer || '(vacío)';
+      const modes = ['standalone', 'browser', 'minimal-ui', 'fullscreen'];
+      let displayModesInfo = '';
 
-      // Mostrar o esconder el link según el contexto
-      const reviewLink = document.getElementById('review-link');
-      if (isInTWA()) {
-        reviewLink.style.display = 'inline'; // o 'block' según diseño
-      } else {
-        reviewLink.style.display = 'none';
-      }
-    </script>
-  </body>
+      modes.forEach(mode => {
+        const matches = window.matchMedia(`(display-mode: ${mode})`).matches;
+        displayModesInfo += `${mode}: ${matches ? '✅ coincide' : '❌ no coincide'}\n`;
+      });
+
+      const info = 
+        `document.referrer:\n${referrer}\n\n` +
+        `Modos de display:\n${displayModesInfo}`;
+
+      document.getElementById('debug').textContent = info;
+    }
+
+    // Ejecutar al cargar la página
+    updateDebugInfo();
+  </script>
+</body>
 </html>
 
