@@ -6,21 +6,29 @@
   </head>
   <body>
     <h1>Hello, GitHub Pages!</h1>
-    <a href="miclaro://review" style="text-decoration: none; color: inherit;">
+    <a id="review-link" href="miclaro://review" style="text-decoration: none; color: inherit; display:none;">
       <i class="fa fa-star" aria-hidden="true"></i>
       <i class="fa fa-star" aria-hidden="true"></i>
       <i class="fa fa-star" aria-hidden="true"></i>
       <i class="fa fa-star" aria-hidden="true"></i>
       <i class="fa fa-star" aria-hidden="true"></i>
-  Me das 5 estrellitas?
-</a>
- <script> if (document.referrer.startsWith('android-app://ar.claro.com.android')) {
-  // Show the link
-  document.getElementById('miclaro://review').style.display = 'block';
-} else {
-  // Hide the link
-  document.getElementById('miclaro://review').style.display = 'none';
-}
- </script>
+      Me das 5 estrellitas?
+    </a>
+
+    <script>
+      // Función para detectar si estamos dentro de una TWA
+      function isInTWA() {
+        return document.referrer && document.referrer.startsWith('android-app://ar.claro.com.android');
+      }
+
+      // Mostrar o esconder el link según el contexto
+      const reviewLink = document.getElementById('review-link');
+      if (isInTWA()) {
+        reviewLink.style.display = 'inline'; // o 'block' según diseño
+      } else {
+        reviewLink.style.display = 'none';
+      }
+    </script>
   </body>
 </html>
+
