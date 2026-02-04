@@ -1,9 +1,25 @@
 <html>
-  <input
-  type="text"
-  autocomplete="one-time-code"
-  inputmode="numeric"
-  maxlength="6"
-  pattern="\d{6}"
->
+<input id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" />
+
+<button id="send">Send code</button>
+
+<script>
+document.getElementById('send').addEventListener('click', async () => {
+  const input = document.getElementById('otp');
+  input.focus();
+
+  if (!('OTPCredential' in window)) return;
+
+  const ac = new AbortController();
+  setTimeout(() => ac.abort(), 60000);
+
+  try {
+    const otp = await navigator.credentials.get({
+      otp: { transport: ['sms'] },
+      signal: ac.signal
+    });
+    input.value = otp.code;
+  } catch {}
+});
+</script>
 </html>
