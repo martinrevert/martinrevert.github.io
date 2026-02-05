@@ -86,20 +86,59 @@
 
       log(`domain for SMS: ${smsDomain}`);
       log(`full host (includes port): ${location.host}`);
+      log(`href: ${location.href}`);
       log(`secure context: ${window.isSecureContext}`);
       log(`OTPCredential in window: ${'OTPCredential' in window}`);
       log(`userAgent: ${navigator.userAgent}`);
+      log(`userActivation supported: ${'userActivation' in navigator}`);
+      if ('userActivation' in navigator) {
+        log(`userActivation.isActive: ${navigator.userActivation.isActive}`);
+        log(`userActivation.hasBeenActive: ${navigator.userActivation.hasBeenActive}`);
+      }
 
       const LISTEN_TIMEOUT_MS = 5 * 60 * 1000;
-      let hasAttempted = false;
       let lastErrorName = null;
+      let attemptSeq = 0;
+      /** @type {AbortController | null} */
+      let activeAbortController = null;
+      /** @type {number | null} */
+      let heartbeatId = null;
+      /** @type {number | null} */
+      let listeningStartedAt = null;
 
-      const startListening = async (trigger) => {
-        if (hasAttempted) return;
-        hasAttempted = true;
+      const stopHeartbeat = () => {
+        if (heartbeatId != null) {
+          clearInterval(heartbeatId);
+          heartbeatId = null;
+        }
+      };
+
+      const startHeartbeat = (attemptId) => {
+        stopHeartbeat();
+        heartbeatId = setInterval(() => {
+          if (listeningStartedAt == null) return;
+          const elapsedSec = Math.round((Date.now() - listeningStartedAt) / 1000);
+          setStatus(`listening (${elapsedSec}s) [attempt ${attemptId}]`);
+        }, 1000);
+      };
+
+      const startListening = async (trigger, { forceRestart = false } = {}) => {
+        // If something is already listening, allow a gesture-triggered restart.
+        if (activeAbortController && forceRestart) {
+          try {
+            activeAbortController.abort('Restarting listener (user activation)');
+          } catch {
+            // ignore
+          }
+        } else if (activeAbortController) {
+          log(`startListening ignored (already listening), trigger=${trigger}`);
+          return;
+        }
+
+        const attemptId = ++attemptSeq;
 
         setStatus('starting');
-        log(`startListening(trigger=${trigger}) @ ${new Date().toISOString()}`);
+        log(`startListening(trigger=${trigger}, attempt=${attemptId}) @ ${new Date().toISOString()}`);
         otpInput.focus();
 
         if (!window.isSecureContext) {
@@ -115,6 +154,13 @@
         }
 
         const ac = new AbortController();
+        activeAbortController = ac;
+        listeningStartedAt = Date.now();
+        startHeartbeat(attemptId);
+        ac.signal.addEventListener('abort', () => {
+          log(`AbortSignal aborted: ${String(ac.signal.reason || '(no reason)')}`);
+        });
+
         const timeoutId = setTimeout(() => {
           ac.abort('Timed out waiting for SMS');
         }, LISTEN_TIMEOUT_MS);
@@ -162,12 +208,14 @@
           lastErrorName = err?.name || 'UnknownError';
         } finally {
           clearTimeout(timeoutId);
+          stopHeartbeat();
+          activeAbortController = null;
+          listeningStartedAt = null;
         }
 
         // If we errored immediately due to a gesture requirement, allow a retry.
         // Some Chrome contexts require a user activation before OTP retrieval.
         if (lastErrorName === 'NotAllowedError' || lastErrorName === 'SecurityError') {
-          hasAttempted = false;
           log('Will retry on first user interaction (tap/click) if needed.');
           setStatus('waiting for user interaction to retry');
         }
@@ -182,14 +230,15 @@
       document.addEventListener(
         'click',
         () => {
-          startListening('user-click');
+          // If Chrome requires activation, restart under a real gesture.
+          startListening('user-click', { forceRestart: true });
         },
         { once: true }
       );
       document.addEventListener(
         'touchend',
         () => {
-          startListening('user-touch');
+          startListening('user-touch', { forceRestart: true });
         },
         { once: true }
       );
