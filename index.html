@@ -94,11 +94,31 @@
             signal: ac.signal,
           });
 
+          log('navigator.credentials.get() resolved.');
+          try {
+            log(`credential type: ${otp?.type ?? '(none)'}`);
+            log(`credential keys: ${otp ? Object.keys(otp).join(', ') : '(none)'}`);
+            log(`raw otp.code: ${typeof otp?.code === 'string' ? JSON.stringify(otp.code) : String(otp?.code)}`);
+          } catch {
+            // ignore logging failures
+          }
+
           if (otp && typeof otp.code === 'string') {
-            otpInput.value = otp.code;
-            log(`Received OTP: ${otp.code}`);
+            const raw = otp.code;
+            const digitsOnly = raw.replace(/\D+/g, '');
+            const code = (digitsOnly.match(/\d{6}/)?.[0] ?? digitsOnly.slice(0, 6) ?? raw).trim();
+
+            // Some UIs/frameworks only react when input events fire.
+            // Also delay to the next tick in case Chrome applies changes after the permission sheet.
+            await new Promise((r) => setTimeout(r, 0));
+            otpInput.value = code;
+            otpInput.dispatchEvent(new Event('input', { bubbles: true }));
+            otpInput.dispatchEvent(new Event('change', { bubbles: true }));
+            otpInput.focus();
+
+            log(`Filled code: ${JSON.stringify(code)} (len=${code.length})`);
           } else {
-            log('Received an OTP credential, but no code was present.');
+            log('Received an OTP credential, but no string code was present.');
           }
         } catch (err) {
           log(`Error: ${err?.name || 'UnknownError'}: ${err?.message || String(err)}`);
