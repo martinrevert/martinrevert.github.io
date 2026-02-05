@@ -1,32 +1,111 @@
-<html>
-<input id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" />
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Web OTP Demo</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; line-height: 1.4; }
+      input { font-size: 20px; padding: 10px 12px; width: 12ch; }
+      button { font-size: 16px; padding: 10px 12px; margin-left: 8px; }
+      pre { white-space: pre-wrap; word-break: break-word; padding: 12px; border: 1px solid rgba(127,127,127,.35); border-radius: 8px; }
+      .muted { opacity: 0.8; }
+    </style>
+  </head>
+  <body>
+    <h1>Web OTP Demo</h1>
 
-<button id="send">Send code</button>
+    <p class="muted">
+      This page listens for an incoming SMS containing an origin-bound OTP.
+      It does <strong>not</strong> send an SMS.
+    </p>
 
-<script>
-document.getElementById('send').addEventListener('click', async () => {
-  const input = document.getElementById('otp');
-  input.focus();
+    <div>
+      <label for="otp">Code</label><br />
+      <input
+        id="otp"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        maxlength="6"
+        placeholder="123456"
+      />
+      <button id="start">Start listening</button>
+    </div>
 
-  if (!window.OTPCredential) {
-  console.log('Feature Not Available');
-}
-else{
-  console.log('Feature Available');
-}
+    <h2>SMS format required</h2>
+    <p class="muted">Send an SMS to this Android device using exactly this format (replace <code>123456</code> with your 6-digit code):</p>
+    <pre id="smsTemplate"></pre>
 
-  if (!('OTPCredential' in window)) return;
+    <h2>Diagnostics</h2>
+    <pre id="log"></pre>
 
-  const ac = new AbortController();
-  setTimeout(() => ac.abort(), 60000);
+    <script>
+      const logEl = document.getElementById('log');
+      const otpInput = document.getElementById('otp');
+      const startBtn = document.getElementById('start');
+      const smsTemplateEl = document.getElementById('smsTemplate');
 
-  try {
-    const otp = await navigator.credentials.get({
-      otp: { transport: ['sms'] },
-      signal: ac.signal
-    });
-    input.value = otp.code;
-  } catch {}
-});
-</script>
+      const log = (msg) => {
+        const line = typeof msg === 'string' ? msg : JSON.stringify(msg, null, 2);
+        logEl.textContent += (logEl.textContent ? '\n' : '') + line;
+        console.log(msg);
+      };
+
+      const hostForSms = (() => {
+        try {
+          return new URL(location.href).host;
+        } catch {
+          return location.host;
+        }
+      })();
+
+      // Web OTP requires an origin-bound SMS.
+      // The "@host #code" line must match the current page's host.
+      smsTemplateEl.textContent =
+        `<#> Your verification code is 123456\n@${hostForSms} #123456`;
+
+      log(`host: ${hostForSms}`);
+      log(`secure context: ${window.isSecureContext}`);
+      log(`OTPCredential in window: ${'OTPCredential' in window}`);
+
+      startBtn.addEventListener('click', async () => {
+        otpInput.focus();
+
+        if (!window.isSecureContext) {
+          log('Web OTP requires HTTPS (or localhost).');
+          return;
+        }
+
+        if (!('OTPCredential' in window)) {
+          log('Web OTP API not available in this browser/context.');
+          return;
+        }
+
+        const ac = new AbortController();
+        const timeoutId = setTimeout(() => {
+          ac.abort('Timed out waiting for SMS');
+        }, 60000);
+
+        log('Listening for SMS OTP for up to 60s…');
+        try {
+          const otp = await navigator.credentials.get({
+            otp: { transport: ['sms'] },
+            signal: ac.signal,
+          });
+
+          if (otp && typeof otp.code === 'string') {
+            otpInput.value = otp.code;
+            log(`Received OTP: ${otp.code}`);
+          } else {
+            log('Received an OTP credential, but no code was present.');
+          }
+        } catch (err) {
+          log(`Error: ${err?.name || 'UnknownError'}: ${err?.message || String(err)}`);
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      });
+    </script>
+  </body>
 </html>
