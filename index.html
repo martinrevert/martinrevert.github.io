@@ -37,6 +37,11 @@
     <p class="muted">Send an SMS to this Android device using exactly this format (replace <code>123456</code> with your 6-digit code):</p>
     <pre id="smsTemplate"></pre>
 
+    <p class="muted">
+      Notes: it must be delivered as an actual <strong>SMS</strong> (not RCS/Chat). The <code>@domain</code> must match this page’s
+      <code>domain for SMS</code> exactly.
+    </p>
+
     <h2>Diagnostics</h2>
     <p class="muted" id="status">Status: idle</p>
     <pre id="log"></pre>
@@ -55,6 +60,37 @@
         const line = typeof msg === 'string' ? msg : JSON.stringify(msg, null, 2);
         logEl.textContent += (logEl.textContent ? '\n' : '') + line;
         console.log(msg);
+      };
+
+      const logErrorDetails = (err) => {
+        try {
+          log(`err typeof: ${typeof err}`);
+          log(`err toString: ${String(err)}`);
+          log(`err instanceof DOMException: ${typeof DOMException !== 'undefined' && err instanceof DOMException}`);
+          log(`err name: ${err?.name ?? '(none)'}`);
+          log(`err message: ${err?.message ?? '(none)'}`);
+          if (err && typeof err === 'object') {
+            const own = Object.getOwnPropertyNames(err);
+            log(`err own props: ${own.join(', ') || '(none)'}`);
+            for (const key of own) {
+              if (key === 'stack') continue;
+              try {
+                log(`err.${key}: ${typeof err[key] === 'string' ? JSON.stringify(err[key]) : String(err[key])}`);
+              } catch {
+                log(`err.${key}: (unreadable)`);
+              }
+            }
+            if ('stack' in err) {
+              try {
+                log(`err.stack: ${String(err.stack).slice(0, 4000)}`);
+              } catch {
+                // ignore
+              }
+            }
+          }
+        } catch {
+          log('Failed to introspect error object.');
+        }
       };
 
       const setStatus = (s) => {
@@ -91,6 +127,8 @@
       log(`OTPCredential in window: ${'OTPCredential' in window}`);
       log(`userAgent: ${navigator.userAgent}`);
       log(`userActivation supported: ${'userActivation' in navigator}`);
+      log(`navigator.credentials exists: ${'credentials' in navigator}`);
+      log(`navigator.credentials.get exists: ${typeof navigator?.credentials?.get === 'function'}`);
       if ('userActivation' in navigator) {
         log(`userActivation.isActive: ${navigator.userActivation.isActive}`);
         log(`userActivation.hasBeenActive: ${navigator.userActivation.hasBeenActive}`);
@@ -204,6 +242,7 @@
           }
         } catch (err) {
           log(`Error: ${err?.name || 'UnknownError'}: ${err?.message || String(err)}`);
+          logErrorDetails(err);
           setStatus(`error: ${err?.name || 'UnknownError'}`);
           lastErrorName = err?.name || 'UnknownError';
         } finally {
