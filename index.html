@@ -8,6 +8,13 @@ document.getElementById('send').addEventListener('click', async () => {
   const input = document.getElementById('otp');
   input.focus();
 
+  if (!window.OTPCredential) {
+  console.log('Feature Not Available');
+}
+else{
+  console.log('Feature Available');
+}
+
   if (!('OTPCredential' in window)) return;
 
   const ac = new AbortController();
