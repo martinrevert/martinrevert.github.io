@@ -8,13 +8,14 @@
       :root { color-scheme: light dark; }
       body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; line-height: 1.4; }
       input { font-size: 20px; padding: 10px 12px; width: 12ch; }
-      button { font-size: 16px; padding: 10px 12px; margin-left: 8px; }
       pre { white-space: pre-wrap; word-break: break-word; padding: 12px; border: 1px solid rgba(127,127,127,.35); border-radius: 8px; }
       .muted { opacity: 0.8; }
     </style>
   </head>
   <body>
     <h1>Web OTP Demo</h1>
+
+    <p class="muted" id="version"></p>
 
     <p class="muted">
       This page listens for an incoming SMS containing an origin-bound OTP.
@@ -30,7 +31,6 @@
         maxlength="6"
         placeholder="123456"
       />
-      <button id="start">Start listening</button>
     </div>
 
     <h2>SMS format required</h2>
@@ -38,13 +38,18 @@
     <pre id="smsTemplate"></pre>
 
     <h2>Diagnostics</h2>
+    <p class="muted" id="status">Status: idle</p>
     <pre id="log"></pre>
 
     <script>
       const logEl = document.getElementById('log');
       const otpInput = document.getElementById('otp');
-      const startBtn = document.getElementById('start');
       const smsTemplateEl = document.getElementById('smsTemplate');
+      const statusEl = document.getElementById('status');
+      const versionEl = document.getElementById('version');
+
+      const VERSION = '2026-02-05.1';
+      versionEl.textContent = `Version: ${VERSION}`;
 
       const log = (msg) => {
         const line = typeof msg === 'string' ? msg : JSON.stringify(msg, null, 2);
@@ -52,42 +57,70 @@
         console.log(msg);
       };
 
-      const hostForSms = (() => {
-        try {
-          return new URL(location.href).host;
-        } catch {
-          return location.host;
-        }
-      })();
+      const setStatus = (s) => {
+        statusEl.textContent = `Status: ${s}`;
+      };
+
+      window.addEventListener('error', (e) => {
+        log(`Window error: ${e?.message || 'unknown'} at ${e?.filename || ''}:${e?.lineno || ''}`);
+      });
+      window.addEventListener('unhandledrejection', (e) => {
+        const reason = e?.reason;
+        log(`Unhandled rejection: ${reason?.name || ''} ${reason?.message || String(reason)}`);
+      });
+      document.addEventListener('visibilitychange', () => {
+        log(`visibility: ${document.visibilityState}`);
+      });
+
+      otpInput.addEventListener('input', () => {
+        log(`input event: value=${JSON.stringify(otpInput.value)}`);
+      });
+
+      // For the SMS origin binding, use hostname (no port).
+      const smsDomain = location.hostname;
 
       // Web OTP requires an origin-bound SMS.
       // The "@host #code" line must match the current page's host.
       smsTemplateEl.textContent =
-        `<#> Your verification code is 123456\n@${hostForSms} #123456`;
+        `<#> Your verification code is 123456\n@${smsDomain} #123456`;
 
-      log(`host: ${hostForSms}`);
+      log(`domain for SMS: ${smsDomain}`);
+      log(`full host (includes port): ${location.host}`);
       log(`secure context: ${window.isSecureContext}`);
       log(`OTPCredential in window: ${'OTPCredential' in window}`);
+      log(`userAgent: ${navigator.userAgent}`);
 
-      startBtn.addEventListener('click', async () => {
+      const LISTEN_TIMEOUT_MS = 5 * 60 * 1000;
+      let hasAttempted = false;
+      let lastErrorName = null;
+
+      const startListening = async (trigger) => {
+        if (hasAttempted) return;
+        hasAttempted = true;
+
+        setStatus('starting');
+        log(`startListening(trigger=${trigger}) @ ${new Date().toISOString()}`);
         otpInput.focus();
 
         if (!window.isSecureContext) {
           log('Web OTP requires HTTPS (or localhost).');
+          setStatus('blocked: insecure context');
           return;
         }
 
         if (!('OTPCredential' in window)) {
           log('Web OTP API not available in this browser/context.');
+          setStatus('blocked: Web OTP unavailable');
           return;
         }
 
         const ac = new AbortController();
         const timeoutId = setTimeout(() => {
           ac.abort('Timed out waiting for SMS');
-        }, 60000);
+        }, LISTEN_TIMEOUT_MS);
 
-        log('Listening for SMS OTP for up to 60s…');
+        log(`Listening for SMS OTP for up to ${Math.round(LISTEN_TIMEOUT_MS / 1000)}s…`);
+        setStatus('listening');
         try {
           const otp = await navigator.credentials.get({
             otp: { transport: ['sms'] },
@@ -95,6 +128,7 @@
           });
 
           log('navigator.credentials.get() resolved.');
+          setStatus('resolved');
           try {
             log(`credential type: ${otp?.type ?? '(none)'}`);
             log(`credential keys: ${otp ? Object.keys(otp).join(', ') : '(none)'}`);
@@ -106,7 +140,7 @@
           if (otp && typeof otp.code === 'string') {
             const raw = otp.code;
             const digitsOnly = raw.replace(/\D+/g, '');
-            const code = (digitsOnly.match(/\d{6}/)?.[0] ?? digitsOnly.slice(0, 6) ?? raw).trim();
+            const code = (digitsOnly.match(/\d{6}/)?.[0] ?? digitsOnly.slice(0, 6) ?? raw).trim().slice(0, 6);
 
             // Some UIs/frameworks only react when input events fire.
             // Also delay to the next tick in case Chrome applies changes after the permission sheet.
@@ -117,15 +151,48 @@
             otpInput.focus();
 
             log(`Filled code: ${JSON.stringify(code)} (len=${code.length})`);
+            setStatus('filled');
           } else {
             log('Received an OTP credential, but no string code was present.');
+            setStatus('resolved: no code');
           }
         } catch (err) {
           log(`Error: ${err?.name || 'UnknownError'}: ${err?.message || String(err)}`);
+          setStatus(`error: ${err?.name || 'UnknownError'}`);
+          lastErrorName = err?.name || 'UnknownError';
         } finally {
           clearTimeout(timeoutId);
         }
+
+        // If we errored immediately due to a gesture requirement, allow a retry.
+        // Some Chrome contexts require a user activation before OTP retrieval.
+        if (lastErrorName === 'NotAllowedError' || lastErrorName === 'SecurityError') {
+          hasAttempted = false;
+          log('Will retry on first user interaction (tap/click) if needed.');
+          setStatus('waiting for user interaction to retry');
+        }
+      };
+
+      // Attempt immediately on load (may be blocked in some contexts).
+      window.addEventListener('load', () => {
+        startListening('load');
       });
+
+      // One-time retry on the first user activation if the load attempt was blocked.
+      document.addEventListener(
+        'click',
+        () => {
+          startListening('user-click');
+        },
+        { once: true }
+      );
+      document.addEventListener(
+        'touchend',
+        () => {
+          startListening('user-touch');
+        },
+        { once: true }
+      );
     </script>
   </body>
 </html>
